@@ -15,6 +15,7 @@ function(bw_add_test name lib)
   add_test(NAME ${name} COMMAND test_${name})
 endfunction()
 
+bw_add_test(common bw_common)
 bw_add_test(binpack bw_binpack)
 bw_add_test(minidb bw_minidb)
 bw_add_test(cfgscript bw_cfgscript)

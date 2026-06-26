@@ -4,6 +4,11 @@
 // frag_offset. Filled byte ranges are tracked as a sorted, coalesced list of
 // [begin, end) spans; a message is complete once those spans collapse to the
 // single span [0, total_len) and FIN has fixed total_len.
+//
+// In-flight partials are kept in `store_` (a vector) with `index_` mapping each
+// (stream_id, msg_id) key to its slot. Slots are reclaimed two ways: a completed
+// message is removed with swap-and-pop, and a RESET compacts away every slot for
+// the stream being reset.
 #include "streamcodec/reassembler.hpp"
 
 #include <algorithm>
@@ -47,9 +52,38 @@ bool Reassembler::is_complete(const PartialMessage& p) {
          p.ranges.front().second >= p.total_len;
 }
 
+std::size_t Reassembler::slot_for(const Key& key, std::uint16_t stream_id,
+                                  std::uint32_t msg_id) {
+  auto it = index_.find(key);
+  if (it != index_.end()) {
+    return it->second;
+  }
+  PartialMessage fresh;
+  fresh.stream_id = stream_id;
+  fresh.msg_id = msg_id;
+  store_.push_back(std::move(fresh));
+  const std::size_t idx = store_.size() - 1;
+  index_[key] = idx;
+  return idx;
+}
+
+void Reassembler::remove_slot(std::size_t idx, const Key& key) {
+  index_.erase(key);
+  const std::size_t last = store_.size() - 1;
+  if (idx != last) {
+    // Move the tail element into the hole and repoint its index entry so every
+    // surviving key still maps to a valid slot.
+    store_[idx] = std::move(store_[last]);
+    const Key moved{store_[idx].stream_id, store_[idx].msg_id};
+    index_[moved] = idx;
+  }
+  store_.pop_back();
+}
+
 bool Reassembler::accept_data(const Frame& f, Message& out) {
   const Key key{f.stream_id, f.msg_id};
-  PartialMessage& p = partials_[key];
+  const std::size_t idx = slot_for(key, f.stream_id, f.msg_id);
+  PartialMessage& p = store_[idx];
 
   // The COMPRESSED flag is metadata: we record it on the message but never
   // touch the payload bytes. Any fragment carrying it marks the whole message.
@@ -97,22 +131,56 @@ bool Reassembler::accept_data(const Frame& f, Message& out) {
   out.compressed = p.compressed;
   out.data.assign(p.buffer.begin(),
                   p.buffer.begin() + static_cast<std::ptrdiff_t>(p.total_len));
-  partials_.erase(key);
+  remove_slot(idx, key);
   return true;
 }
 
 std::size_t Reassembler::reset_stream(std::uint16_t stream_id) {
-  // RESET lifecycle: drop every partial buffer for this stream. Partially
-  // received messages are discarded and never emitted.
-  std::size_t dropped = 0;
-  for (auto it = partials_.begin(); it != partials_.end();) {
-    if (it->first.first == stream_id) {
-      it = partials_.erase(it);
-      ++dropped;
-    } else {
-      ++it;
+  // RESET lifecycle: drop every partial buffer for this stream and compact the
+  // store so the freed slots are reclaimed. Partially received messages are
+  // discarded and never emitted.
+  //
+  // Compaction shifts the surviving partials down into the holes left by the
+  // dropped ones, so the index entries that point past a hole must be shifted
+  // to match. We remember where the first hole opened and slide those entries
+  // down to keep the map and the store in agreement.
+  std::size_t survivors = 0;
+  for (const PartialMessage& p : store_) {
+    if (p.stream_id != stream_id) {
+      ++survivors;
     }
   }
+
+  std::vector<PartialMessage> kept;
+  kept.reserve(survivors);
+
+  std::size_t dropped = 0;
+  std::size_t first_hole = 0;
+  bool opened_hole = false;
+  for (std::size_t i = 0; i < store_.size(); ++i) {
+    if (store_[i].stream_id == stream_id) {
+      if (!opened_hole) {
+        first_hole = i;
+        opened_hole = true;
+      }
+      index_.erase(Key{store_[i].stream_id, store_[i].msg_id});
+      ++dropped;
+      continue;
+    }
+    kept.push_back(std::move(store_[i]));
+  }
+  store_.swap(kept);
+
+  // Slide the index entries that sat after the first hole down to track the
+  // compaction. Entries before the hole are unaffected.
+  if (opened_hole) {
+    for (auto& entry : index_) {
+      if (entry.second > first_hole) {
+        entry.second -= 1;
+      }
+    }
+  }
+
   return dropped;
 }
 

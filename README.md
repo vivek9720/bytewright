@@ -37,7 +37,14 @@ The `common` library is the spine: every decoder reads input through
 `common::ParseError`, which carries a stable `ErrorCode` plus the byte offset of
 the problem. Top-level entry points and the fuzz harnesses catch `ParseError`,
 so a malformed input is *rejected*, never a process abort — only a genuine
-memory-safety fault (caught by a sanitizer) terminates a run.
+memory-safety fault (caught by a sanitizer) terminates a run. Alongside the
+cursor and error model, `common` provides `ByteWriter`, CRC-32/Adler-32, a
+`BitReader` for sub-byte fields, strict UTF-8 validation/codepoint helpers, and
+FNV-1a / splitmix64 hashing — all dependency-free and deterministic.
+
+The toolkit is intentionally substantial: ~11k lines of first-party C++ across
+the libraries, tools, and unit tests, with multi-stage formats and accumulated
+decode state so that any bug a fuzzer finds sits at the end of a real code path.
 
 ---
 
@@ -49,7 +56,9 @@ section table (typed sections with per-section CRCs), and section bodies built
 from length-prefixed, **nested** records. Records are typed (int / uint / float
 / string / blob) and recursive (`ARRAY`, `GROUP`, and `KEYVAL` metadata records
 nest other records up to a depth limit). Supports an optional whole-file trailer
-CRC and a metadata section of key/value records.
+CRC and a metadata section of key/value records. Also ships a `Builder` encoder
+(round-trips with the parser), a recursive `RecordVisitor` plus a structural
+`validate`, and a section/metadata query API.
 
 ### `minidb` — embedded record-store decoder
 Decodes the **`MDB1`** page-oriented store: a fixed header, fixed-size **pages**
@@ -58,7 +67,9 @@ varint-encoded **fields**. String fields can be inline or **references into a
 string table** page. The decoder then performs a **journal/WAL replay**
 (`BEGIN` / `INSERT` / `UPDATE` / `DELETE` / `COMMIT` / `ROLLBACK`) over an
 in-memory record store to reconstruct the final committed state — a stateful,
-multi-stage path.
+multi-stage path. Adds an INDEX-page B-tree decoder with ordered lookup, a record
+`Cursor`, overflow-page chain reconstruction (with cycle/length guards), and a
+catalog/statistics view.
 
 ### `cfgscript` — configuration/script parser
 A real **lexer + recursive-descent parser + expression evaluator** for an
@@ -67,7 +78,9 @@ arrays and object literals, quoted strings with escapes (`\n`, `\xHH`,
 `\u{XXXX}`), and a precedence-climbing expression grammar with arithmetic,
 bitwise, comparison, logical, and ternary operators evaluated against a scoped
 symbol environment. `include "path";` is recorded **as data only** — the parser
-never opens or reads any file.
+never opens or reads any file. Post-parse modules add a canonical text
+serializer, a dotted-path query (`a.b[2].c`), schema validation, and a
+flatten/diff exporter.
 
 ### `streamcodec` — streaming frame decoder
 Decodes a back-to-back stream of frames (sync word `0x53C7`), **reassembling
@@ -75,7 +88,9 @@ fragmented messages** per `(stream_id, msg_id)` from out-of-order fragments
 placed by `frag_offset`, finalized on a `FIN` flag. Tracks **rolling per-stream
 sequence state** (gaps and duplicates), handles `CONTROL`/`ACK`/`RESET` frames
 (a `RESET` tears down a stream's partial reassembly), and records the
-compression flag as **metadata only** (no decompression is performed).
+compression flag as **metadata only** (no decompression is performed). Includes
+a frame encoder/fragmenter, a self-contained RLE transform, an ordered
+per-stream delivery queue, and a window/flow control state machine.
 
 ---
 

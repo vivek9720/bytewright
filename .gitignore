@@ -17,6 +17,10 @@ oom-*
 timeout-*
 *.profraw
 
+# PoC working directory — the crashing input, notes, and the patch must NOT be
+# committed to the submitted repo (the difficulty checker must not see the fix).
+/poc/
+
 # Editor / OS noise
 .vscode/
 .idea/

@@ -180,6 +180,25 @@ BW_TEST(reset_drops_partial_reassembly) {
   BW_CHECK(found);
 }
 
+BW_TEST(reset_compacts_store_but_survivor_completes) {
+  // Open one in-flight message on stream 10 and one on stream 20, then RESET
+  // stream 10. The survivor on stream 20 must remain addressable and complete
+  // normally once its final fragment arrives.
+  ByteWriter w;
+  build_frame(w, FrameType::kData, kFlagFrag, 10, 1, 0, 0, bytes({'Y'}));
+  build_frame(w, FrameType::kData, kFlagFrag, 20, 1, 0, 0, bytes({'M'}));
+  build_frame(w, FrameType::kReset, 0, 10, 0, 1, 0, {});
+  build_frame(w, FrameType::kData,
+              static_cast<std::uint8_t>(kFlagFrag | kFlagFin), 20, 1, 1, 1,
+              bytes({'N'}));
+
+  auto r = bw::streamcodec::decode(w.bytes().data(), w.bytes().size());
+  BW_CHECK_EQ(r.reset_frames, 1u);
+  BW_CHECK_EQ(r.messages.size(), 1u);
+  BW_CHECK_EQ(r.messages[0].stream_id, 20u);
+  BW_CHECK(r.messages[0].data == bytes({'M', 'N'}));
+}
+
 BW_TEST(seq_gap_and_duplicate_counted) {
   ByteWriter w;
   // seq 0,1 in order, then jump to 5 (gap), then repeat 5 (duplicate).
