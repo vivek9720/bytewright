@@ -1,0 +1,23 @@
+# ClusterFuzzLite project configuration for the bytewright toolkit.
+#
+# This file is optional for Fenrir but documents the language and the full set
+# of fuzz targets built by .clusterfuzzlite/build.sh.
+language: c++
+
+# Sanitizers the harnesses are expected to run under. AddressSanitizer is the
+# primary memory-safety oracle; UBSan catches undefined behavior in the integer
+# and pointer arithmetic that runs through the decoders.
+sanitizers:
+  - address
+  - undefined
+
+fuzzing_engines:
+  - libfuzzer
+
+# Every harness compiled by build.sh. Each is a distinct entry point exercising
+# a different decoder.
+fuzz_targets:
+  - binpack_fuzzer
+  - minidb_fuzzer
+  - cfgscript_fuzzer
+  - streamcodec_fuzzer

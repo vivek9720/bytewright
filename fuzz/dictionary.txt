@@ -1,0 +1,126 @@
+# bytewright libFuzzer dictionary
+#
+# Tokens that help the mutator reach structure-gated decode paths across all
+# four harnesses: container magics, frame sync words, type/op tags, language
+# keywords, operators, and escape introducers. The build copies this file to
+# $OUT/<target>_fuzzer.dict so every target gets it.
+
+# ---------------------------------------------------------------------------
+# binpack ("BPK1" container)
+# ---------------------------------------------------------------------------
+binpack_magic="BPK1"
+bp_version_le="\x01\x00"
+bp_flag_meta_le="\x01\x00"
+bp_flag_trailer_le="\x02\x00"
+bp_flag_both_le="\x03\x00"
+# record tags: INT UINT FLOAT STRING BLOB ARRAY GROUP KEYVAL
+bp_tag_int="\x01"
+bp_tag_uint="\x02"
+bp_tag_float="\x03"
+bp_tag_string="\x04"
+bp_tag_blob="\x05"
+bp_tag_array="\x06"
+bp_tag_group="\x07"
+bp_tag_keyval="\x08"
+bp_rec_flag_group="\x01"
+# section types (u16 LE): FREE DATA METADATA INDEX STRINGS
+bp_sec_free="\x00\x00"
+bp_sec_data="\x01\x00"
+bp_sec_meta="\x02\x00"
+bp_sec_index="\x03\x00"
+bp_sec_strings="\x04\x00"
+
+# ---------------------------------------------------------------------------
+# minidb ("MDB1" record store)
+# ---------------------------------------------------------------------------
+minidb_magic="MDB1"
+mdb_version_le="\x01\x00"
+mdb_no_overflow="\xff\xff"
+mdb_no_strtab="\xff\xff\xff\xff"
+mdb_pagesize_256="\x00\x01"
+mdb_pagesize_128="\x80\x00"
+# page types: FREE DATA STRINGS INDEX OVERFLOW
+mdb_page_free="\x00"
+mdb_page_data="\x01"
+mdb_page_strings="\x02"
+mdb_page_index="\x03"
+mdb_page_overflow="\x04"
+# field types: NULL BOOL INT UINT FLOAT STRING_REF INLINE_STRING BLOB
+mdb_f_null="\x00"
+mdb_f_bool="\x01"
+mdb_f_int="\x02"
+mdb_f_uint="\x03"
+mdb_f_float="\x04"
+mdb_f_strref="\x05"
+mdb_f_instr="\x06"
+mdb_f_blob="\x07"
+# journal ops: BEGIN INSERT UPDATE DELETE COMMIT ROLLBACK
+mdb_op_begin="\x01"
+mdb_op_insert="\x02"
+mdb_op_update="\x03"
+mdb_op_delete="\x04"
+mdb_op_commit="\x05"
+mdb_op_rollback="\x06"
+
+# ---------------------------------------------------------------------------
+# cfgscript (text config / script language)
+# ---------------------------------------------------------------------------
+cfg_kw_include="include"
+cfg_kw_true="true"
+cfg_kw_false="false"
+cfg_kw_null="null"
+cfg_op_assign="="
+cfg_op_dot="."
+cfg_op_semi=";"
+cfg_op_comma=","
+cfg_op_lbrace="{"
+cfg_op_rbrace="}"
+cfg_op_lbrack="["
+cfg_op_rbrack="]"
+cfg_op_lparen="("
+cfg_op_rparen=")"
+cfg_op_q="?"
+cfg_op_colon=":"
+cfg_op_add="+"
+cfg_op_shl="<<"
+cfg_op_shr=">>"
+cfg_op_eq="=="
+cfg_op_ne="!="
+cfg_op_le="<="
+cfg_op_ge=">="
+cfg_op_and="&&"
+cfg_op_or="||"
+cfg_op_bor="|"
+cfg_op_bxor="^"
+cfg_quote="\""
+cfg_esc_n="\\n"
+cfg_esc_x="\\x"
+cfg_esc_u="\\u{"
+cfg_hex="0x"
+cfg_cmt_block="/*"
+cfg_cmt_block_end="*/"
+cfg_cmt_line="//"
+cfg_cmt_hash="#"
+
+# ---------------------------------------------------------------------------
+# streamcodec (framed stream, big-endian)
+# ---------------------------------------------------------------------------
+sc_sync="\x53\xc7"
+sc_version="\x01"
+# frame types: DATA CONTROL ACK RESET
+sc_type_data="\x00"
+sc_type_control="\x01"
+sc_type_ack="\x02"
+sc_type_reset="\x03"
+# flags: FIN FRAG COMPRESSED HAS_CRC and useful combos
+sc_flag_fin="\x01"
+sc_flag_frag="\x02"
+sc_flag_compressed="\x04"
+sc_flag_hascrc="\x08"
+sc_flag_frag_fin="\x03"
+sc_flag_frag_fin_crc="\x0b"
+sc_flag_frag_comp="\x06"
+# full header stems that land directly in a branch
+sc_data_stem="\x53\xc7\x01\x00"
+sc_control_stem="\x53\xc7\x01\x01"
+sc_reset_stem="\x53\xc7\x01\x03"

@@ -1,0 +1,25 @@
+# Build output
+/build/
+/out/
+/cmake-build-*/
+*.o
+*.obj
+*.a
+*.lib
+*.exe
+*.pdb
+
+# Fuzzing artifacts (keep fuzz/corpus/ and fuzz/dictionary.txt, ignore the rest)
+/fuzz-out/
+crash-*
+leak-*
+oom-*
+timeout-*
+*.profraw
+
+# Editor / OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

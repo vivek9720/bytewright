@@ -1,0 +1,19 @@
+# Keep the build script and all source LF-terminated regardless of platform, so
+# the ClusterFuzzLite container (Linux) never sees CRLF in build.sh.
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.cpp   text eol=lf
+*.hpp   text eol=lf
+*.cc    text eol=lf
+*.cmake text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.yaml  text eol=lf
+*.cfg   text eol=lf
+
+# Binary seed inputs must never be line-ending normalized.
+*.bin   binary
+
+# Mark the build script executable when added to the index. After `git add`,
+# also run: git update-index --chmod=+x .clusterfuzzlite/build.sh
